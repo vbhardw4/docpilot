@@ -32,7 +32,9 @@ import java.util.UUID;
  *   <li>If nothing clears the threshold → <b>escalate</b>: no LLM call, no guessing;
  *       return the guardrail reply plus a pre-filled support-ticket draft.</li>
  *   <li>Otherwise build a citation-enforcing prompt (system + numbered context +
- *       conversation history) and call the chat model.</li>
+ *       conversation history) and call the chat model. If the model replies with its
+ *       no-answer sentinel (the retrieved chunks don't actually answer the question),
+ *       <b>escalate</b> as well — a bare "not found" must open a ticket, not end the turn.</li>
  *   <li>Persist the turn (conversation memory) and log the interaction (analytics).</li>
  * </ol>
  */
@@ -103,9 +105,7 @@ public class ChatService {
         ChatResponse response;
         Double topScore = hits.isEmpty() ? null : hits.get(0).getScore();
         if (hits.isEmpty()) {
-            response = ChatResponse.escalated(sessionId, AnswerComposer.notFoundMessage(),
-                    new TicketDraft("Question: " + truncate(question, 80),
-                            "Asked in chat (session " + sessionId + "):\n\n" + question));
+            response = escalated(sessionId, question);
             log.info("Escalated question, nothing above threshold: {}", question);
         } else {
             String answer = chatClient.prompt()
@@ -116,8 +116,15 @@ public class ChatService {
                             .param("question", question))
                     .call()
                     .content();
-            response = ChatResponse.answered(sessionId, answer,
-                    AnswerComposer.citations(hits), topScore != null ? topScore : 0.0);
+            if (AnswerComposer.isNotFoundAnswer(answer)) {
+                // The model itself judged the retrieved context insufficient — a bare
+                // "not found" reply must escalate to a ticket, not end the turn.
+                response = escalated(sessionId, question);
+                log.info("Escalated question, model found no answer in retrieved context: {}", question);
+            } else {
+                response = ChatResponse.answered(sessionId, answer,
+                        AnswerComposer.citations(hits), topScore != null ? topScore : 0.0);
+            }
         }
 
         conversations.saveTurn(sessionId, question, response.answer());
@@ -131,6 +138,12 @@ public class ChatService {
         ChatInteraction interaction = interactions.findById(request.interactionId())
                 .orElseThrow(() -> new IllegalArgumentException("Unknown interaction: " + request.interactionId()));
         interaction.setHelpful(request.helpful());
+    }
+
+    private static ChatResponse escalated(String sessionId, String question) {
+        return ChatResponse.escalated(sessionId, AnswerComposer.notFoundMessage(),
+                new TicketDraft("Question: " + truncate(question, 80),
+                        "Asked in chat (session " + sessionId + "):\n\n" + question));
     }
 
     private static String truncate(String value, int maxLength) {

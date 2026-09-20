@@ -17,8 +17,8 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(ApiKeyMissingException.class)
-    public ResponseEntity<ApiError> handleMissingKey(ApiKeyMissingException ex, HttpServletRequest req) {
+    @ExceptionHandler(LlmUnavailableException.class)
+    public ResponseEntity<ApiError> handleLlmUnavailable(LlmUnavailableException ex, HttpServletRequest req) {
         return error(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), req);
     }
 

@@ -1,4 +1,4 @@
-package dev.vishalbhardwaj.docpilot.ingest;
+package dev.vishalbhardwaj.docpilot.ingest.dto;
 
 import java.util.UUID;
 

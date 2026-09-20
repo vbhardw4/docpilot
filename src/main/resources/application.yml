@@ -54,9 +54,12 @@ docpilot:
     top-k: 5
     # Cosine similarity floor. Below this, the question is treated as
     # "not in the docs" and escalates to a support ticket instead of guessing.
-    # Tuned for nomic-embed-text on section-sized chunks (measured 2026-09-20:
-    # in-scope questions score ~0.65-0.90, out-of-scope ~0.50-0.66).
-    similarity-threshold: 0.65
+    # Tuned for nomic-embed-text on heading-aware section chunks (measured
+    # 2026-09-20 on the eval questions: in-scope 0.70-0.87, out-of-scope
+    # 0.53-0.65 — 0.68 sits in the clean separation band). As a second layer,
+    # the chat model emits a no-answer sentinel when the retrieved chunks don't
+    # actually answer the question, and ChatService escalates on that too.
+    similarity-threshold: 0.68
   chat:
     # How many prior messages are included as conversation context.
     history-window: 8

@@ -3,7 +3,8 @@
 A working AI support agent trained on a business's own documents, with a chat widget
 any site can embed in two lines of code. Built with **Spring Boot 3 + Spring AI (Java)** —
 most RAG demos are Python; this one is production-grade Java — **PostgreSQL + pgvector**
-for embeddings, and OpenAI for embeddings + chat.
+for embeddings, and **Ollama (local LLM)** for embeddings + chat. No API key, no account,
+no per-token cost.
 
 This is the live demo of the **AI Support Agent package** ($2,500–$6,000): a RAG chatbot
 trained on a client's help center, embedded on their site in 2–3 weeks.
@@ -28,7 +29,7 @@ flowchart LR
         PG[(pgvector<br/>vector_store)]
         APP[(app tables<br/>docs, messages,<br/>tickets, interactions)]
     end
-    LLM([OpenAI<br/>gpt-4o-mini +<br/>text-embedding-3-small])
+    LLM([Ollama — local<br/>llama3.2:3b +<br/>nomic-embed-text])
 
     W -->|POST /api/v1/chat| CC
     CC --> CS
@@ -51,11 +52,13 @@ chat model → answer with `[n]` citations → persist turn + log interaction fo
 
 ## Quickstart — 3 commands
 
-Prerequisites: JDK 21, Maven 3.9+, Docker, and an OpenAI API key.
+Prerequisites: JDK 21, Maven 3.9+, Docker, and [Ollama](https://ollama.com).
 
 ```bash
 docker compose up -d                     # 1. Postgres 17 + pgvector
-export OPENAI_API_KEY=sk-...             # 2. LLM key (env var — never hardcoded)
+ollama serve &                           # 2. local LLM backend (background)
+ollama pull llama3.2:3b                 #    chat model (~2 GB, one-time)
+ollama pull nomic-embed-text            #    embedding model (~274 MB, one-time)
 mvn spring-boot:run                      # 3. API on http://localhost:8080
 ```
 
@@ -146,7 +149,7 @@ What this demo does **not** do (and says so to buyers):
 
 ## What's real vs. stubbed
 
-**Real:** document ingestion (PDF/md/txt → chunking → OpenAI embeddings → pgvector),
+**Real:** document ingestion (PDF/md/txt → chunking → local Ollama embeddings → pgvector),
 vector retrieval with similarity threshold, citation-enforcing prompts, conversation
 memory, the escalate-to-ticket guardrail, feedback, analytics, the embeddable widget.
 
@@ -164,9 +167,9 @@ All tuning lives in `src/main/resources/application.yml`:
 
 | Key | Default | Notes |
 |-----|---------|-------|
-| `OPENAI_API_KEY` (env) | — | Required for chat/ingest; app boots without it but chat returns 503 |
-| `spring.ai.openai.chat.options.model` | `gpt-4o-mini` | Swap for `gpt-4o` / Anthropic via Spring AI |
-| `spring.ai.openai.embedding.options.model` | `text-embedding-3-small` | 1536 dims — must match `vectorstore.pgvector.dimensions` |
+| `spring.ai.ollama.base-url` | `http://localhost:11434` | Chat calls return 503 with a clear message until `ollama serve` is running |
+| `spring.ai.ollama.chat.model` | `llama3.2:3b` | Swap for `llama3.1:8b` / `qwen2.5` etc. via `ollama pull` |
+| `spring.ai.ollama.embedding.model` | `nomic-embed-text` | 768 dims — must match `vectorstore.pgvector.dimensions` |
 | `docpilot.retrieval.top-k` | `5` | Chunks per question |
 | `docpilot.retrieval.similarity-threshold` | `0.72` | Below this → escalate instead of answering |
 | `docpilot.chat.history-window` | `8` | Prior messages included as context |

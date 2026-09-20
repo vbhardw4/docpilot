@@ -112,7 +112,7 @@ up/down feedback, escalation-to-ticket form. See `src/main/resources/static/widg
 
 ## Performance targets
 
-> **All numbers below are ILLUSTRATIVE targets for this demo setup, not measured
+> **All numbers below are ILLUSTRATIVE of this demo setup, not client
 > benchmarks.** They depend on the model, network, document set, and thresholds.
 > Measure your own with `eval/eval.py` (15 starter questions; extend to 50).
 
@@ -120,8 +120,26 @@ up/down feedback, escalation-to-ticket form. See `src/main/resources/static/widg
 |--------|---------------------|
 | p95 answer latency | < 2.5 s |
 | Retrieval precision on eval set | > 85% |
-| Cost per conversation | ~$0.01–$0.03 (gpt-4o-mini + text-embedding-3-small) |
+| Cost per conversation | ~$0 (local llama3.2:3b + nomic-embed-text — no paid APIs) |
 | Escalation on out-of-scope questions | 100% (by design — never guess) |
+
+### Measured on the demo setup (2026-09-20, GitHub Actions runner)
+
+Full-stack eval (`eval/eval.py`, 15 questions: 10 in-scope, 5 out-of-scope), app
+running with llama3.2:3b + nomic-embed-text, section-aware Markdown chunking,
+similarity threshold 0.68:
+
+| Metric | Measured |
+|--------|----------|
+| Eval behaviors as expected | **15/15** |
+| In-scope questions answered with citations | 10/10 |
+| Out-of-scope questions escalated | 5/5 (100%) |
+| Average answer latency | 5,446 ms |
+| p95 answer latency | 23,340 ms (**missed the < 2.5 s target** — the runner is CPU-only; a GPU host or a faster model brings this down) |
+
+Caveat: the harness checks *escalation behavior* and citation presence, not
+factual answer quality — verify answers against your own documents before
+quoting figures to anyone.
 
 Run the eval: `python3 eval/eval.py` (from `eval/`, app running).
 
@@ -171,7 +189,7 @@ All tuning lives in `src/main/resources/application.yml`:
 | `spring.ai.ollama.chat.model` | `llama3.2:3b` | Swap for `llama3.1:8b` / `qwen2.5` etc. via `ollama pull` |
 | `spring.ai.ollama.embedding.model` | `nomic-embed-text` | 768 dims — must match `vectorstore.pgvector.dimensions` |
 | `docpilot.retrieval.top-k` | `5` | Chunks per question |
-| `docpilot.retrieval.similarity-threshold` | `0.72` | Below this → escalate instead of answering |
+| `docpilot.retrieval.similarity-threshold` | `0.68` | Below this → escalate instead of answering. Docs are chunked by Markdown section headings at ingest; the chat prompt also carries a no-answer sentinel so the model declines when chunks don't actually answer the question |
 | `docpilot.chat.history-window` | `8` | Prior messages included as context |
 
 ## Project structure

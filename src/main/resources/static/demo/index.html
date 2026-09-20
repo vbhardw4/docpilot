@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ParcelPilot — sample storefront (DocPilot demo)</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; color: #0f172a; }
+    header { background: #1d4ed8; color: #fff; padding: 28px 40px; }
+    header h1 { margin: 0 0 6px; } header p { margin: 0; opacity: .9; }
+    main { max-width: 860px; margin: 0 auto; padding: 32px 24px 120px; }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 16px 0; }
+    .rates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .rate { border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; text-align: center; }
+    .rate b { font-size: 20px; color: #1d4ed8; }
+    pre { background: #0f172a; color: #e2e8f0; padding: 16px; border-radius: 10px; overflow-x: auto; font-size: 13px; }
+    .hint { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 16px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>📦 ParcelPilot</h1>
+  <p>Fictional parcel-tracking SaaS — the demo storefront for the DocPilot chatbot.</p>
+</header>
+<main>
+  <div class="hint">
+    <b>Try the chat widget</b> (bottom-right corner). Ask it things like
+    “How long do refunds take?”, “What is the express delivery cutoff?”,
+    “And what about shipping to Vancouver?” — then ask something out of scope like
+    “Do you offer pet insurance?” to see the guardrail escalate to a ticket.
+  </div>
+
+  <div class="card">
+    <h2>Shipping rates</h2>
+    <div class="rates">
+      <div class="rate"><b>$8.99</b><br>Standard<br><small>3–5 business days</small></div>
+      <div class="rate"><b>$16.99</b><br>Express<br><small>1–2 business days</small></div>
+      <div class="rate"><b>$29.99</b><br>Priority overnight<br><small>Next business day</small></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Embed this chatbot on your own site</h2>
+    <p>Two lines of code — no build step, no dependencies:</p>
+    <pre>&lt;script src="http://localhost:8080/widget/widget.js"
+        data-api-url="http://localhost:8080"
+        data-title="ParcelPilot Support"&gt;&lt;/script&gt;</pre>
+    <p><small>The widget reads <code>data-api-url</code> / <code>data-title</code> from its own
+    script tag (or <code>window.DocPilotConfig</code>). Point <code>data-api-url</code> at wherever
+    the DocPilot API runs.</small></p>
+  </div>
+</main>
+
+<!-- The two-line embed. This page IS the demo: the widget below is live.
+     No data-api-url: the widget defaults to the host serving this page. -->
+<script src="/widget/widget.js" data-title="ParcelPilot Support"></script>
+</body>
+</html>

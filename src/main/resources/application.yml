@@ -54,7 +54,9 @@ docpilot:
     top-k: 5
     # Cosine similarity floor. Below this, the question is treated as
     # "not in the docs" and escalates to a support ticket instead of guessing.
-    similarity-threshold: 0.72
+    # Tuned for nomic-embed-text on section-sized chunks (measured 2026-09-20:
+    # in-scope questions score ~0.65-0.90, out-of-scope ~0.50-0.66).
+    similarity-threshold: 0.65
   chat:
     # How many prior messages are included as conversation context.
     history-window: 8

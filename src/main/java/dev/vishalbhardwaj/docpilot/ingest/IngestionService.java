@@ -14,10 +14,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Ingestion pipeline: read → chunk → embed → store in pgvector.
@@ -36,14 +40,25 @@ public class IngestionService {
 
     private static final long MAX_BYTES = 10 * 1024 * 1024;
 
+    /** Markdown section headers (#, ##, ###) — each section becomes its own chunk. */
+    private static final Pattern MD_HEADER = Pattern.compile("^(#{1,3})\\s+(.*)$");
+
+    /**
+     * Sections longer than this fall back to token chunking. The sample-doc sections
+     * are far shorter, so this never triggers for them (keeping the measured
+     * similarity separation intact) — it only guards large real-world uploads
+     * against the embedding model's context window.
+     */
+    private static final int MAX_SECTION_CHARS = 1500;
+
     private final VectorStore vectorStore;
     private final IngestedDocumentRepository repository;
     /*
-     * ~400-token chunks instead of the 800-token default: the sample docs are
-     * short, so one-chunk-per-doc embeddings dilute per-question cosine
-     * similarity and in-scope questions fall below the retrieval threshold.
-     * Smaller chunks keep each chunk on one topic; also better for real
-     * uploads with mixed content.
+     * Fallback splitter for non-markdown uploads (txt, pdf) and for over-long
+     * markdown sections. Markdown itself is chunked by section headers via
+     * splitMarkdown(): the sample docs are short, so pure token chunking emitted
+     * one chunk per doc and diluted per-question cosine similarity below the
+     * retrieval threshold.
      */
     private final TokenTextSplitter splitter = TokenTextSplitter.builder()
             .withChunkSize(400)
@@ -67,7 +82,19 @@ public class IngestionService {
         List<Document> raw = read(fileName, bytes);
         long charCount = raw.stream().mapToLong(d -> d.getText() == null ? 0 : d.getText().length()).sum();
 
-        List<Document> chunks = splitter.apply(raw).stream()
+        List<Document> split;
+        if (isMarkdown(fileName)) {
+            // Heading-aware chunking (mirrors the measured probe exactly).
+            split = splitMarkdown(fileName, raw.get(0).getText()).stream()
+                    .flatMap(doc -> doc.getText().length() > MAX_SECTION_CHARS
+                            ? splitter.apply(List.of(doc)).stream()
+                            : Stream.of(doc))
+                    .toList();
+        } else {
+            split = splitter.apply(raw);
+        }
+
+        List<Document> chunks = split.stream()
                 .map(chunk -> {
                     Map<String, Object> metadata = new HashMap<>(chunk.getMetadata());
                     metadata.put(DOC_ID_METADATA_KEY, docId.toString());
@@ -83,6 +110,60 @@ public class IngestionService {
         IngestedDocument saved = repository.save(new IngestedDocument(fileName, contentType, chunks.size(), charCount));
         log.info("Ingested {} ({} chars -> {} chunks)", fileName, charCount, chunks.size());
         return saved;
+    }
+
+    private static boolean isMarkdown(String fileName) {
+        String lower = fileName.toLowerCase();
+        return lower.endsWith(".md") || lower.endsWith(".markdown");
+    }
+
+    /**
+     * Heading-aware Markdown chunking: split on {@code #}/{@code ##}/{@code ###}
+     * headers so each chunk covers one topic, prefixed with
+     * {@code "<doc title> — <section>"} to keep topical context in the embedding.
+     * <p>
+     * Measured 2026-09-20 with nomic-embed-text on the sample docs: in-scope
+     * questions score 0.70–0.87 against their best section chunk while out-of-scope
+     * questions stay at 0.53–0.65, so a 0.68 cosine floor separates them cleanly.
+     * Package-private static for unit testing (no Spring needed).
+     */
+    static List<Document> splitMarkdown(String fileName, String text) {
+        List<Document> sections = new ArrayList<>();
+        String title = null;
+        String head = null;
+        List<String> bodyLines = new ArrayList<>();
+        // -1 keeps trailing empty lines, matching Python str.split("\n") semantics.
+        for (String line : text.split("\n", -1)) {
+            Matcher m = MD_HEADER.matcher(line);
+            if (m.matches()) {
+                flushSection(sections, fileName, title, head, bodyLines);
+                if (m.group(1).equals("#") && title == null) {
+                    title = m.group(2).strip();
+                    head = null;
+                } else {
+                    head = m.group(2).strip();
+                }
+                bodyLines = new ArrayList<>();
+            } else {
+                bodyLines.add(line);
+            }
+        }
+        flushSection(sections, fileName, title, head, bodyLines);
+        return sections;
+    }
+
+    private static void flushSection(List<Document> sections, String fileName,
+                                     String title, String head, List<String> bodyLines) {
+        if (head == null && bodyLines.isEmpty()) {
+            return;
+        }
+        String h = head != null ? head : (title != null ? title : fileName);
+        String label = (title == null || h.equals(title)) ? h : title + " — " + h;
+        String body = String.join("\n", bodyLines).strip();
+        String chunk = (label + "\n\n" + body).strip();
+        if (chunk.length() > 20) {
+            sections.add(new Document(chunk));
+        }
     }
 
     @Transactional

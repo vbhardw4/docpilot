@@ -1,5 +1,6 @@
-package dev.vishalbhardwaj.docpilot.ingest;
+package dev.vishalbhardwaj.docpilot.ingest.dto;
 
+import dev.vishalbhardwaj.docpilot.ingest.IngestedDocument;
 import java.time.Instant;
 import java.util.UUID;
 

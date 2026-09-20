@@ -45,7 +45,13 @@ public class IngestionService {
      * Smaller chunks keep each chunk on one topic; also better for real
      * uploads with mixed content.
      */
-    private final TokenTextSplitter splitter = new TokenTextSplitter(400, 350, 5, 10000, true);
+    private final TokenTextSplitter splitter = TokenTextSplitter.builder()
+            .withChunkSize(400)
+            .withMinChunkSizeChars(350)
+            .withMinChunkLengthToEmbed(5)
+            .withMaxNumChunks(10000)
+            .withKeepSeparator(true)
+            .build();
 
     public IngestionService(VectorStore vectorStore, IngestedDocumentRepository repository) {
         this.vectorStore = vectorStore;

@@ -73,4 +73,13 @@ class AnswerComposerTest {
     void notFoundMessage_offersTicket() {
         assertThat(AnswerComposer.notFoundMessage()).contains("support ticket");
     }
+
+    @Test
+    void isNotFoundAnswer_detectsSentinel() {
+        assertThat(AnswerComposer.isNotFoundAnswer("I couldn't find that in the documentation.")).isTrue();
+        assertThat(AnswerComposer.isNotFoundAnswer("  i couldn't find that in the documentation.\n")).isTrue();
+        assertThat(AnswerComposer.isNotFoundAnswer("Express shipping costs $16.99 [1].")).isFalse();
+        assertThat(AnswerComposer.isNotFoundAnswer("")).isFalse();
+        assertThat(AnswerComposer.isNotFoundAnswer(null)).isFalse();
+    }
 }

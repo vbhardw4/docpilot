@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>DocPilot — embed snippet</title></head>
+<body>
+<h1>DocPilot embed snippet</h1>
+<p>Paste these two lines before <code>&lt;/body&gt;</code> on any page. No build step, no dependencies.</p>
+<pre><code>&lt;script src="https://YOUR-DOCPILOT-HOST/widget/widget.js"
+        data-api-url="https://YOUR-DOCPILOT-HOST"
+        data-title="Acme Support"&gt;&lt;/script&gt;</code></pre>
+<p>Optional configuration (set before the script tag):</p>
+<pre><code>&lt;script&gt;
+  window.DocPilotConfig = {
+    apiUrl: "https://YOUR-DOCPILOT-HOST",
+    title: "Acme Support"
+  };
+&lt;/script&gt;</code></pre>
+</body>
+</html>

@@ -17,11 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -48,39 +43,25 @@ public class ChatService {
     private final ConversationService conversations;
     private final ChatInteractionRepository interactions;
     private final DocPilotProperties properties;
-    private final String ollamaBaseUrl;
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(2))
-            .build();
+    private final String geminiApiKey;
 
     public ChatService(ChatClient.Builder chatClientBuilder,
                        VectorStore vectorStore,
                        ConversationService conversations,
                        ChatInteractionRepository interactions,
                        DocPilotProperties properties,
-                       @Value("${spring.ai.ollama.base-url:http://localhost:11434}") String ollamaBaseUrl) {
+                       @Value("${spring.ai.google.genai.api-key:}") String geminiApiKey) {
         this.chatClient = chatClientBuilder.build();
         this.vectorStore = vectorStore;
         this.conversations = conversations;
         this.interactions = interactions;
         this.properties = properties;
-        this.ollamaBaseUrl = ollamaBaseUrl;
+        this.geminiApiKey = geminiApiKey;
     }
 
-    /** Fail fast with a clear 503 when the local LLM backend is not running. */
+    /** Fail fast with a clear 503 when no Gemini API key is configured. */
     private void ensureLlmAvailable() {
-        try {
-            HttpRequest req = HttpRequest.newBuilder(URI.create(ollamaBaseUrl + "/api/tags"))
-                    .timeout(Duration.ofSeconds(2))
-                    .GET()
-                    .build();
-            HttpResponse<Void> res = httpClient.send(req, HttpResponse.BodyHandlers.discarding());
-            if (res.statusCode() >= 400) {
-                throw new LlmUnavailableException();
-            }
-        } catch (LlmUnavailableException e) {
-            throw e;
-        } catch (Exception e) {
+        if (!StringUtils.hasText(geminiApiKey)) {
             throw new LlmUnavailableException();
         }
     }

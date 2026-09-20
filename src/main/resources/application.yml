@@ -21,22 +21,30 @@ spring:
       max-file-size: 10MB
       max-request-size: 10MB
   ai:
-    ollama:
-      # Local LLM — no API key, no account, no cost. Requires `ollama serve`
-      # running locally with the models pulled (see README).
-      base-url: http://localhost:11434
-      chat:
-        model: llama3.2:3b
-        options:
-          temperature: 0.2
-      embedding:
-        model: nomic-embed-text
+    google:
+      genai:
+        # Google AI Studio API key (free tier: 250 chat requests/day as of
+        # 2026-09). REQUIRED — chat calls return 503 with a clear message until
+        # GEMINI_API_KEY is set. Get a free key at https://aistudio.google.com
+        # (self-serve, no card required for the free tier). Never commit a key.
+        api-key: ${GEMINI_API_KEY:}
+        chat:
+          options:
+            model: gemini-2.5-flash
+            temperature: 0.2
+        embedding:
+          text:
+            options:
+              # Native 768 dims — matches the existing pgvector schema, no
+              # migration needed. Changing the embedding model requires
+              # re-ingesting all documents (different embedding space).
+              model: text-embedding-004
     vectorstore:
       pgvector:
         initialize-schema: true
         schema-name: public
         table-name: vector_store
-        # Must match the embedding model (nomic-embed-text = 768 dims).
+        # Must match the embedding model (text-embedding-004 = 768 dims).
         # Changing the embedding model requires matching this and re-ingesting.
         dimensions: 768
         distance-type: COSINE_DISTANCE
@@ -54,12 +62,18 @@ docpilot:
     top-k: 5
     # Cosine similarity floor. Below this, the question is treated as
     # "not in the docs" and escalates to a support ticket instead of guessing.
-    # Tuned for nomic-embed-text on heading-aware section chunks (measured
-    # 2026-09-20 on the eval questions: in-scope 0.70-0.87, out-of-scope
-    # 0.53-0.65 — 0.68 sits in the clean separation band). As a second layer,
-    # the chat model emits a no-answer sentinel when the retrieved chunks don't
-    # actually answer the question, and ChatService escalates on that too.
-    similarity-threshold: 0.68
+    # UNTUNED PLACEHOLDER (0.70): the previous 0.68 was hand-tuned for
+    # nomic-embed-text (measured 2026-09-20: in-scope 0.70-0.87, out-of-scope
+    # 0.53-0.65). Score distributions differ per embedding model, so that number
+    # is invalid for text-embedding-004. 0.70 errs toward escalation (the safe
+    # failure mode for a support bot). Re-tune before quoting any accuracy
+    # figures: run the app with GEMINI_API_KEY, run eval/eval.py, inspect the
+    # top-1 similarity scores for in-scope vs out-of-scope questions, and set
+    # this to sit in the separation band. See README "Re-tuning the threshold".
+    # As a second layer, the chat model emits a no-answer sentinel when the
+    # retrieved chunks don't actually answer the question, and ChatService
+    # escalates on that too.
+    similarity-threshold: 0.70
   chat:
     # How many prior messages are included as conversation context.
     history-window: 8

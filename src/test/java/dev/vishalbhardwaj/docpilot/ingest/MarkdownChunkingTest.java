@@ -12,10 +12,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Guards the heading-aware chunking that the retrieval threshold is tuned for:
- * measured 2026-09-20 with nomic-embed-text, in-scope eval questions score
- * 0.70–0.87 against their best section chunk while out-of-scope questions stay
- * at 0.53–0.65. If the sample docs change shape, these tests fail loudly so the
- * threshold gets re-measured instead of silently degrading.
+ * score bands were last measured 2026-09-20 with nomic-embed-text (in-scope
+ * 0.70–0.87, out-of-scope 0.53–0.65) and must be re-measured for the current
+ * embedding model. If the sample docs change shape, these tests fail loudly so
+ * the threshold gets re-measured instead of silently degrading.
  */
 class MarkdownChunkingTest {
 

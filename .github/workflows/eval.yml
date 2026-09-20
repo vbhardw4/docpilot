@@ -1,8 +1,9 @@
 name: Eval
 
-# Manual only: boots the full stack (pgvector + Ollama + app), runs the eval
-# harness, and uploads the results. Heavy (~2.3 GB of model downloads), so it
-# never runs on push.
+# Manual only: boots the full stack (pgvector + app), runs the eval
+# harness against the Gemini free-tier API, and uploads the results.
+# Needs the GEMINI_API_KEY repo secret (free key at https://aistudio.google.com).
+# Never runs on push (each run costs ~15 chat + embedding API calls).
 on:
   workflow_dispatch:
 
@@ -34,21 +35,19 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Install Ollama
-        run: curl -fsSL https://ollama.com/install.sh | sh
-
-      - name: Start Ollama and pull models
+      - name: Check Gemini API key
         run: |
-          ollama serve > ollama.log 2>&1 &
-          sleep 5
-          ollama pull llama3.2:3b
-          ollama pull nomic-embed-text
-          ollama list
+          if [ -z "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "GEMINI_API_KEY secret is not set — add a free key at https://aistudio.google.com"
+            exit 1
+          fi
 
       - name: Build app
         run: mvn -B package -DskipTests
 
       - name: Start app and wait for seed
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           nohup java -jar target/docpilot-*.jar > app.log 2>&1 &
           echo "waiting for seed..."

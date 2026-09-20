@@ -3,8 +3,9 @@
 A working AI support agent trained on a business's own documents, with a chat widget
 any site can embed in two lines of code. Built with **Spring Boot 3 + Spring AI (Java)** —
 most RAG demos are Python; this one is production-grade Java — **PostgreSQL + pgvector**
-for embeddings, and **Ollama (local LLM)** for embeddings + chat. No API key, no account,
-no per-token cost.
+for embeddings, and the **Gemini free-tier API** for embeddings + chat
+(`gemini-2.5-flash` for chat, `text-embedding-004` for embeddings). One free API key,
+no card required — so the demo runs on a tiny free host instead of a GPU box.
 
 This is the live demo of the **AI Support Agent package** ($2,500–$6,000): a RAG chatbot
 trained on a client's help center, embedded on their site in 2–3 weeks.
@@ -29,7 +30,7 @@ flowchart LR
         PG[(pgvector<br/>vector_store)]
         APP[(app tables<br/>docs, messages,<br/>tickets, interactions)]
     end
-    LLM([Ollama — local<br/>llama3.2:3b +<br/>nomic-embed-text])
+    LLM([Gemini API — free tier<br/>gemini-2.5-flash +<br/>text-embedding-004])
 
     W -->|POST /api/v1/chat| CC
     CC --> CS
@@ -45,22 +46,25 @@ flowchart LR
     TI <--> APP
 ```
 
-**Request flow:** question → embed → pgvector similarity search (top-k, cosine threshold
-0.72) → if nothing clears the threshold, **escalate** (no LLM call, no guessing — offer a
-support ticket) → otherwise build a citation-enforcing prompt with conversation history →
-chat model → answer with `[n]` citations → persist turn + log interaction for analytics.
+**Request flow:** question → embed → pgvector similarity search (top-k, cosine threshold —
+tuned per embedding model, see Configuration) → if nothing clears the threshold,
+**escalate** (no LLM call, no guessing — offer a support ticket) → otherwise build a
+citation-enforcing prompt with conversation history → chat model → answer with `[n]`
+citations → persist turn + log interaction for analytics.
 
 ## Quickstart — 3 commands
 
-Prerequisites: JDK 21, Maven 3.9+, Docker, and [Ollama](https://ollama.com).
+Prerequisites: JDK 21, Maven 3.9+, Docker, and a **free Gemini API key** from
+[AI Studio](https://aistudio.google.com) (self-serve, no card required — 250
+`gemini-2.5-flash` requests/day on the free tier as of 2026-09).
 
 ```bash
 docker compose up -d                     # 1. Postgres 17 + pgvector
-ollama serve &                           # 2. local LLM backend (background)
-ollama pull llama3.2:3b                 #    chat model (~2 GB, one-time)
-ollama pull nomic-embed-text            #    embedding model (~274 MB, one-time)
+export GEMINI_API_KEY=<your-key>        # 2. free API key (never commit it)
 mvn spring-boot:run                      # 3. API on http://localhost:8080
 ```
+
+Chat calls return **503** with a clear message until `GEMINI_API_KEY` is set.
 
 On first boot the app seeds a fictional ParcelPilot help center (3 docs) so the bot
 answers immediately. Then open the demo storefront: **http://localhost:8080/demo/** —
@@ -120,10 +124,16 @@ up/down feedback, escalation-to-ticket form. See `src/main/resources/static/widg
 |--------|---------------------|
 | p95 answer latency | < 2.5 s |
 | Retrieval precision on eval set | > 85% |
-| Cost per conversation | ~$0 (local llama3.2:3b + nomic-embed-text — no paid APIs) |
+| Cost per conversation | ~$0 (Gemini free tier — 250 flash requests/day; a shared/crawled public URL can burn it — flash-lite at 1,000/day is the fallback) |
 | Escalation on out-of-scope questions | 100% (by design — never guess) |
 
-### Measured on the demo setup (2026-09-20, GitHub Actions runner)
+### Measured on the demo setup
+
+> ⚠️ The figures below were measured on the **local-Ollama build** (`main` branch:
+> llama3.2:3b + nomic-embed-text, 2026-09-20). They do **not** apply to this Gemini
+> build — different models, different embedding space. Re-run the eval on this build
+> and replace them before quoting any numbers (see "Re-tuning the similarity threshold"
+> and "Re-running the eval" below).
 
 Full-stack eval (`eval/eval.py`, 15 questions: 10 in-scope, 5 out-of-scope), app
 running with llama3.2:3b + nomic-embed-text, section-aware Markdown chunking,
@@ -142,6 +152,42 @@ factual answer quality — verify answers against your own documents before
 quoting figures to anyone.
 
 Run the eval: `python3 eval/eval.py` (from `eval/`, app running).
+
+### Re-tuning the similarity threshold (required after the embedding swap)
+
+The threshold is embedding-model-specific. The old 0.68 was hand-tuned for
+nomic-embed-text (in-scope 0.70–0.87 vs out-of-scope 0.53–0.65) and is invalid
+for `text-embedding-004`. The current 0.70 default is an **untuned placeholder**
+that errs toward escalation (the safe failure mode for a support bot). Re-tune
+with the app running and `GEMINI_API_KEY` set:
+
+1. Set `docpilot.retrieval.similarity-threshold: 0.0` in `application.yml` and
+   restart — retrieval then returns its top-k hits regardless of score.
+2. Ask each question in `eval/eval-questions.jsonl` via `POST /api/v1/chat` and
+   note the `confidence` field in each response (it's the top-1 cosine similarity).
+3. Find the separation band: the highest out-of-scope `confidence` vs the lowest
+   in-scope `confidence`. Set the threshold in the middle of that band.
+4. Restore the threshold, restart, and run `python3 eval/eval.py` — all 15
+   behaviors should pass.
+
+### Re-ingesting after the embedding swap
+
+Changing the embedding model changes the embedding space, so **every stored
+vector must be regenerated**. `text-embedding-004` is natively 768 dims, matching
+the existing `vector_store` schema — no migration needed — but the vectors
+themselves are stale. Cleanest path (sample docs re-seed on boot when the tables
+are empty):
+
+```bash
+docker compose down -v          # wipe the pgdata volume (deletes old vectors)
+docker compose up -d
+export GEMINI_API_KEY=<your-key>
+mvn spring-boot:run              # wait for "Seeded 3 sample documents"
+```
+
+For user-uploaded documents, re-upload them via `POST /api/v1/documents`
+(the old chunks are deleted with the volume wipe; or `DELETE
+/api/v1/documents/{id}` per doc and re-upload without the wipe).
 
 ## For a business like yours
 
@@ -167,7 +213,7 @@ What this demo does **not** do (and says so to buyers):
 
 ## What's real vs. stubbed
 
-**Real:** document ingestion (PDF/md/txt → chunking → local Ollama embeddings → pgvector),
+**Real:** document ingestion (PDF/md/txt → chunking → Gemini embeddings → pgvector),
 vector retrieval with similarity threshold, citation-enforcing prompts, conversation
 memory, the escalate-to-ticket guardrail, feedback, analytics, the embeddable widget.
 
@@ -185,11 +231,11 @@ All tuning lives in `src/main/resources/application.yml`:
 
 | Key | Default | Notes |
 |-----|---------|-------|
-| `spring.ai.ollama.base-url` | `http://localhost:11434` | Chat calls return 503 with a clear message until `ollama serve` is running |
-| `spring.ai.ollama.chat.model` | `llama3.2:3b` | Swap for `llama3.1:8b` / `qwen2.5` etc. via `ollama pull` |
-| `spring.ai.ollama.embedding.model` | `nomic-embed-text` | 768 dims — must match `vectorstore.pgvector.dimensions` |
+| `GEMINI_API_KEY` (env) | *(required)* | Chat calls return 503 with a clear message until set. Free key at https://aistudio.google.com |
+| `spring.ai.google.genai.chat.options.model` | `gemini-2.5-flash` | `gemini-2.5-flash-lite` is the 1,000-request/day fallback if the free quota binds |
+| `spring.ai.google.genai.embedding.text.options.model` | `text-embedding-004` | 768 dims — matches the pgvector schema. Changing the embedding model requires re-ingesting all documents (different embedding space) |
 | `docpilot.retrieval.top-k` | `5` | Chunks per question |
-| `docpilot.retrieval.similarity-threshold` | `0.68` | Below this → escalate instead of answering. Docs are chunked by Markdown section headings at ingest; the chat prompt also carries a no-answer sentinel so the model declines when chunks don't actually answer the question |
+| `docpilot.retrieval.similarity-threshold` | `0.70` (UNTUNED placeholder) | Below this → escalate instead of answering. The old 0.68 was hand-tuned for nomic-embed-text and is invalid for `text-embedding-004` — re-tune before quoting accuracy figures (see "Re-tuning the similarity threshold"). Docs are chunked by Markdown section headings at ingest; the chat prompt also carries a no-answer sentinel so the model declines when chunks don't actually answer the question |
 | `docpilot.chat.history-window` | `8` | Prior messages included as context |
 
 ## Project structure

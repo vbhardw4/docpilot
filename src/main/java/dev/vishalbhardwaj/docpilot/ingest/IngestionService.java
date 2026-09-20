@@ -122,10 +122,10 @@ public class IngestionService {
      * headers so each chunk covers one topic, prefixed with
      * {@code "<doc title> — <section>"} to keep topical context in the embedding.
      * <p>
-     * Measured 2026-09-20 with nomic-embed-text on the sample docs: in-scope
-     * questions score 0.70–0.87 against their best section chunk while out-of-scope
-     * questions stay at 0.53–0.65, so a 0.68 cosine floor separates them cleanly.
-     * Package-private static for unit testing (no Spring needed).
+     * Score bands were last measured 2026-09-20 with nomic-embed-text on the
+     * sample docs (in-scope 0.70–0.87, out-of-scope 0.53–0.65); they must be
+     * re-measured for the current embedding model before trusting any threshold
+     * built on them. Package-private static for unit testing (no Spring needed).
      */
     static List<Document> splitMarkdown(String fileName, String text) {
         List<Document> sections = new ArrayList<>();

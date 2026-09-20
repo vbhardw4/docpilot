@@ -59,10 +59,10 @@
       <scope>runtime</scope>
     </dependency>
 
-    <!-- Spring AI: chat + embeddings (OpenAI), pgvector vector store, PDF ingestion -->
+    <!-- Spring AI: chat + embeddings (Ollama, local, no API key), pgvector vector store, PDF ingestion -->
     <dependency>
       <groupId>org.springframework.ai</groupId>
-      <artifactId>spring-ai-starter-model-openai</artifactId>
+      <artifactId>spring-ai-starter-model-ollama</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.ai</groupId>

@@ -1,0 +1,15 @@
+{"question": "How long do refunds take after my claim is approved?", "expect_escalation": false}
+{"question": "What is the cutoff time for same-day pickup?", "expect_escalation": false}
+{"question": "How much does express shipping cost?", "expect_escalation": false}
+{"question": "My parcel is damaged. How do I file a claim?", "expect_escalation": false}
+{"question": "What is the maximum payout for a lost parcel?", "expect_escalation": false}
+{"question": "Which provinces does express shipping cover?", "expect_escalation": false}
+{"question": "Can I change the delivery address after shipping?", "expect_escalation": false}
+{"question": "What does a ParcelPilot tracking ID look like?", "expect_escalation": false}
+{"question": "Are SMS notifications free?", "expect_escalation": false}
+{"question": "What happens if my tracking hasn't updated in 48 hours?", "expect_escalation": false}
+{"question": "Do you offer pet insurance?", "expect_escalation": true}
+{"question": "Can I pay for shipping with Bitcoin?", "expect_escalation": true}
+{"question": "What is the weather like in Toronto today?", "expect_escalation": true}
+{"question": "Do you ship parcels to Mars?", "expect_escalation": true}
+{"question": "Can you help me file my taxes?", "expect_escalation": true}

@@ -1,0 +1,33 @@
+# DocPilot local database — PostgreSQL 17 with the pgvector extension.
+#
+# Init notes:
+#  - The image ships the `vector` extension pre-installed; no manual install needed.
+#  - Spring AI's PgVectorStore (spring.ai.vectorstore.pgvector.initialize-schema=true
+#    in application.yml) creates the extension and the `vector_store` table on first boot.
+#  - To verify manually:  docker compose exec postgres psql -U docpilot -d docpilot
+#      =>  CREATE EXTENSION IF NOT EXISTS vector;
+#      =>  \dx   (should list `vector`)
+#
+# Start it:   docker compose up -d
+# Stop it:    docker compose down        (add -v to wipe data)
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.0-pg17
+    container_name: docpilot-postgres
+    environment:
+      POSTGRES_DB: docpilot
+      POSTGRES_USER: docpilot
+      POSTGRES_PASSWORD: docpilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - docpilot-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docpilot -d docpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  docpilot-pgdata:

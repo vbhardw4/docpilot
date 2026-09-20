@@ -4,7 +4,7 @@ import dev.vishalbhardwaj.docpilot.chat.dto.ChatRequest;
 import dev.vishalbhardwaj.docpilot.chat.dto.ChatResponse;
 import dev.vishalbhardwaj.docpilot.chat.dto.FeedbackRequest;
 import dev.vishalbhardwaj.docpilot.chat.dto.TicketDraft;
-import dev.vishalbhardwaj.docpilot.common.ApiKeyMissingException;
+import dev.vishalbhardwaj.docpilot.common.LlmUnavailableException;
 import dev.vishalbhardwaj.docpilot.config.DocPilotProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +17,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,27 +46,46 @@ public class ChatService {
     private final ConversationService conversations;
     private final ChatInteractionRepository interactions;
     private final DocPilotProperties properties;
-    private final String apiKey;
+    private final String ollamaBaseUrl;
+    private final HttpClient httpClient = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(2))
+            .build();
 
     public ChatService(ChatClient.Builder chatClientBuilder,
                        VectorStore vectorStore,
                        ConversationService conversations,
                        ChatInteractionRepository interactions,
                        DocPilotProperties properties,
-                       @Value("${spring.ai.openai.api-key:}") String apiKey) {
+                       @Value("${spring.ai.ollama.base-url:http://localhost:11434}") String ollamaBaseUrl) {
         this.chatClient = chatClientBuilder.build();
         this.vectorStore = vectorStore;
         this.conversations = conversations;
         this.interactions = interactions;
         this.properties = properties;
-        this.apiKey = apiKey;
+        this.ollamaBaseUrl = ollamaBaseUrl;
+    }
+
+    /** Fail fast with a clear 503 when the local LLM backend is not running. */
+    private void ensureLlmAvailable() {
+        try {
+            HttpRequest req = HttpRequest.newBuilder(URI.create(ollamaBaseUrl + "/api/tags"))
+                    .timeout(Duration.ofSeconds(2))
+                    .GET()
+                    .build();
+            HttpResponse<Void> res = httpClient.send(req, HttpResponse.BodyHandlers.discarding());
+            if (res.statusCode() >= 400) {
+                throw new LlmUnavailableException();
+            }
+        } catch (LlmUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new LlmUnavailableException();
+        }
     }
 
     @Transactional
     public ChatResponse ask(ChatRequest request) {
-        if (!StringUtils.hasText(apiKey)) {
-            throw new ApiKeyMissingException();
-        }
+        ensureLlmAvailable();
         long started = System.currentTimeMillis();
         String sessionId = StringUtils.hasText(request.sessionId())
                 ? request.sessionId()

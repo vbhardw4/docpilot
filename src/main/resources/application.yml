@@ -1,0 +1,61 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: docpilot
+  datasource:
+    url: jdbc:postgresql://localhost:5432/docpilot
+    username: docpilot
+    password: docpilot
+  jpa:
+    hibernate:
+      # Demo setting. For production, switch to Flyway/Liquibase migrations.
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  ai:
+    openai:
+      # Read from the environment — never hardcode a key. Empty default lets the app
+      # boot without one; chat calls fail with a clear 503 until it is set.
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        options:
+          model: gpt-4o-mini
+          temperature: 0.2
+      embedding:
+        options:
+          model: text-embedding-3-small
+    vectorstore:
+      pgvector:
+        initialize-schema: true
+        schema-name: public
+        table-name: vector_store
+        # Must match the embedding model (text-embedding-3-small = 1536 dims).
+        # Changing the embedding model requires matching this and re-ingesting.
+        dimensions: 1536
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# DocPilot tuning knobs — see config/DocPilotProperties.java
+docpilot:
+  retrieval:
+    top-k: 5
+    # Cosine similarity floor. Below this, the question is treated as
+    # "not in the docs" and escalates to a support ticket instead of guessing.
+    similarity-threshold: 0.72
+  chat:
+    # How many prior messages are included as conversation context.
+    history-window: 8

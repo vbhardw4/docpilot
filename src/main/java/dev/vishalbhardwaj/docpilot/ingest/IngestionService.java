@@ -38,7 +38,14 @@ public class IngestionService {
 
     private final VectorStore vectorStore;
     private final IngestedDocumentRepository repository;
-    private final TokenTextSplitter splitter = new TokenTextSplitter();
+    /*
+     * ~400-token chunks instead of the 800-token default: the sample docs are
+     * short, so one-chunk-per-doc embeddings dilute per-question cosine
+     * similarity and in-scope questions fall below the retrieval threshold.
+     * Smaller chunks keep each chunk on one topic; also better for real
+     * uploads with mixed content.
+     */
+    private final TokenTextSplitter splitter = new TokenTextSplitter(400, 350, 5, 10000, true);
 
     public IngestionService(VectorStore vectorStore, IngestedDocumentRepository repository) {
         this.vectorStore = vectorStore;
